@@ -635,6 +635,130 @@ Devuelve la respuesta de la herramienta en español.
 Si contiene la etiqueta [Fallback], consérvala.
 """
 
+def extraer_texto_gradio(
+    content
+):
+    """
+    Convierte el contenido de mensajes de Gradio
+    a texto simple.
+    """
+
+    if isinstance(
+        content,
+        str
+    ):
+        return content.strip()
+
+    if isinstance(
+        content,
+        list
+    ):
+        partes = []
+
+        for bloque in content:
+
+            if isinstance(
+                bloque,
+                str
+            ):
+                partes.append(
+                    bloque
+                )
+
+            elif isinstance(
+                bloque,
+                dict
+            ):
+                if (
+                    bloque.get("type")
+                    == "text"
+                ):
+                    texto = bloque.get(
+                        "text",
+                        ""
+                    )
+
+                    if texto:
+                        partes.append(
+                            str(texto)
+                        )
+
+        return "\n".join(
+            partes
+        ).strip()
+
+    if isinstance(
+        content,
+        dict
+    ):
+        if (
+            content.get("type")
+            == "text"
+        ):
+            return str(
+                content.get(
+                    "text",
+                    ""
+                )
+            ).strip()
+
+    return ""
+
+def normalizar_historial_gradio(
+    historial,
+    max_mensajes=8
+):
+    """
+    Convierte el historial de Gradio 6
+    al formato simple que utiliza TutorBot.
+    """
+
+    historial = (
+        historial
+        or []
+    )[-max_mensajes:]
+
+    normalizado = []
+
+    for mensaje in historial:
+
+        if not isinstance(
+            mensaje,
+            dict
+        ):
+            continue
+
+        role = mensaje.get(
+            "role",
+            ""
+        )
+
+        if role not in {
+            "user",
+            "assistant",
+            "model"
+        }:
+            continue
+
+        content = extraer_texto_gradio(
+            mensaje.get(
+                "content",
+                ""
+            )
+        )
+
+        if not content:
+            continue
+
+        normalizado.append({
+            "role":
+                role,
+
+            "content":
+                content,
+        })
+
+    return normalizado
 
 def construir_mensajes(
     consulta,
@@ -819,18 +943,14 @@ def historial_a_texto(
     historial,
     max_mensajes=6
 ):
-    if not historial:
-        return ""
+    historial = (
+        historial
+        or []
+    )[-max_mensajes:]
 
     partes = []
 
-    for mensaje in historial[-max_mensajes:]:
-
-        if not isinstance(
-            mensaje,
-            dict
-        ):
-            continue
+    for mensaje in historial:
 
         role = mensaje.get(
             "role",
@@ -842,10 +962,7 @@ def historial_a_texto(
             ""
         )
 
-        if not isinstance(
-            content,
-            str
-        ):
+        if not content:
             continue
 
         if role == "user":
