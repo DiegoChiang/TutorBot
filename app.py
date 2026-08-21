@@ -815,13 +815,172 @@ async def agente(
                 espera
             )
 
+def historial_a_texto(
+    historial,
+    max_mensajes=6
+):
+    if not historial:
+        return ""
+
+    partes = []
+
+    for mensaje in historial[-max_mensajes:]:
+
+        if not isinstance(
+            mensaje,
+            dict
+        ):
+            continue
+
+        role = mensaje.get(
+            "role",
+            ""
+        )
+
+        content = mensaje.get(
+            "content",
+            ""
+        )
+
+        if not isinstance(
+            content,
+            str
+        ):
+            continue
+
+        if role == "user":
+            etiqueta = "Usuario"
+
+        elif role in {
+            "assistant",
+            "model"
+        }:
+            etiqueta = "TutorBot"
+
+        else:
+            continue
+
+        partes.append(
+            f"{etiqueta}: {content}"
+        )
+
+    return "\n".join(
+        partes
+    )
+
+
+async def contextualizar_consulta(
+    consulta,
+    historial
+):
+    """
+    Convierte una pregunta de seguimiento en una consulta
+    autosuficiente antes de enviarla al router y al RAG.
+    """
+
+    if not historial:
+        return consulta
+
+    historial_texto = historial_a_texto(
+        historial
+    )
+
+    if not historial_texto:
+        return consulta
+
+    system = """
+Eres un componente de contextualización de consultas
+para un asistente académico.
+
+Tu única tarea es reescribir la CONSULTA ACTUAL como una
+consulta autosuficiente utilizando el HISTORIAL.
+
+Reglas:
+
+- NO respondas la pregunta.
+- Devuelve únicamente la consulta reescrita.
+- Resuelve referencias como:
+  "eso", "ese", "esa", "ellos", "cada uno",
+  "el anterior", "la anterior", "ese modelo",
+  "esa función", "dame ejemplos", "¿y cómo?",
+  "¿y por qué?", "¿y cuál es su fórmula?"
+  usando el historial.
+- Conserva la intención original del usuario.
+- No inventes información que no aparezca en el historial.
+- Si la consulta ya es autosuficiente, devuélvela sin cambios.
+"""
+
+    user = (
+        f"HISTORIAL:\n"
+        f"{historial_texto}\n\n"
+        f"CONSULTA ACTUAL:\n"
+        f"{consulta}"
+    )
+
+    try:
+        respuesta = (
+            await gemini_client.aio.models.generate_content(
+                model=MODEL_ROUTING,
+                contents=[
+                    genai.types.Content(
+                        role="user",
+                        parts=[
+                            genai.types.Part.from_text(
+                                text=user
+                            )
+                        ]
+                    )
+                ],
+                config=GenerateContentConfig(
+                    system_instruction=system
+                )
+            )
+        )
+
+        contextualizada = (
+            respuesta.text
+            or ""
+        ).strip()
+
+        return (
+            contextualizada
+            if contextualizada
+            else consulta
+        )
+
+    except Exception as e:
+        print(
+            "No se pudo contextualizar:",
+            e
+        )
+
+        return consulta
 
 async def responder_gradio(
     message,
     history
 ):
+    # 1. Convierte el follow-up en una consulta autosuficiente
+    consulta_contextual = (
+        await contextualizar_consulta(
+            message,
+            history
+        )
+    )
+
+    print(
+        "Consulta original:",
+        message
+    )
+
+    print(
+        "Consulta contextualizada:",
+        consulta_contextual
+    )
+
+    # 2. El agente recibe la consulta ya resuelta
     respuesta, _ = await agente(
-        message,
+        consulta_contextual,
         historial=history
     )
 
