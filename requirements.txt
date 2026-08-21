@@ -1,0 +1,8 @@
+google-genai==1.56.0
+fastmcp==3.1.1
+gradio==6.24.0
+langchain-community==0.4.1
+langchain-text-splitters==1.1.1
+faiss-cpu==1.13.2
+transformers
+torch

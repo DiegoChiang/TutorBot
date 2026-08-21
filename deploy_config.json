@@ -1,0 +1,7 @@
+{
+  "model_chat": "gemini-3.1-pro-preview",
+  "model_routing": "gemini-3.1-pro-preview",
+  "embedding_model": "BAAI/bge-m3",
+  "k_generacion": 5,
+  "umbral_distancia": 0.9243212938308716
+}
